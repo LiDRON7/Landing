@@ -1,0 +1,37 @@
+# .github/workflows/add-issues-to-profile-board.yml
+name: Add Issues to Profile Board
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: read
+  issues: write
+  projects: write
+
+jobs:
+  add-to-profile-board:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if issue has a tracked label
+        id: check_label
+        run: |
+          LABELS="${{ github.event.issue.labels.*.name }}"
+          echo "Issue labels: $LABELS"
+          TARGET_LABELS="Landing Path-Planning Obstacle-Avoidance Sensor-Control-Data-Gathering Telemetry-Communication Artificial-Intelligence"
+          for l in $TARGET_LABELS; do
+            if [[ "$LABELS" == *"$l"* ]]; then
+              echo "found_label=$l" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
+          echo "found_label=" >> $GITHUB_OUTPUT
+
+      - name: Add issue to profile board
+        if: steps.check_label.outputs.found_label
+        uses: peter-evans/create-or-update-project-card@v2
+        with:
+          project-url: https://github.com/orgs/LiDRON7/projects/10
+          content-id: ${{ github.event.issue.node_id }}
+          content-type: Issue
