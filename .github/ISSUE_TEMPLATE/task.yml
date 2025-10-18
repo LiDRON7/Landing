@@ -1,1 +1,27 @@
+---
+name: "📝 New Task / Issue"
+about: "Create a new issue with objective, description, tasks, and due date"
+title: ""
+labels: ""
+assignees: ""
+---
 
+# 📝 Title
+<!-- Provide a brief, clear title for the issue -->
+
+## 🎯 Objective
+<!-- Describe the main goal or purpose of this task/issue -->
+
+## 📄 Description
+<!-- Provide details about what needs to be done -->
+- Include any relevant notes, context, or constraints
+- Mention dependencies or related modules if needed
+
+## ✅ To Do
+<!-- List the specific tasks that need to be completed -->
+- [ ] Task 1
+- [ ] Task 2
+- [ ] Task 3
+
+## 📅 Due Date
+<!-- Specify the target completion date -->
