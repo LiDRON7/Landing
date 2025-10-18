@@ -1,5 +1,4 @@
-# .github/workflows/add-issues-to-profile-board.yml
-name: Add Issues to Profile Board
+name: Add Issues to New Org Board
 
 on:
   issues:
@@ -20,7 +19,9 @@ jobs:
           LABELS="${{ join(github.event.issue.labels.*.name, ' ') }}"
           echo "Issue labels: $LABELS"
 
+          # List of labels to track
           TARGET_LABELS="Landing Path-Planning Obstacle-Avoidance Sensor-Control-Data-Gathering Telemetry-Communication Artificial-Intelligence"
+          
           for l in $TARGET_LABELS; do
             if [[ "$LABELS" == *"$l"* ]]; then
               echo "found_label=$l" >> $GITHUB_OUTPUT
@@ -29,10 +30,32 @@ jobs:
           done
           echo "found_label=" >> $GITHUB_OUTPUT
 
-      - name: Add issue to profile board
+      - name: Add issue to In Progress column
         if: steps.check_label.outputs.found_label
-        uses: peter-evans/create-or-update-project-card@v2
-        with:
-          project-url: https://github.com/orgs/LiDRON7/projects/10
-          content-id: ${{ github.event.issue.node_id }}
-          content-type: Issue
+        env:
+          TOKEN: ${{ secrets.PROJECTS_TOKEN }}  # Your PAT stored as a secret
+          BOARD_ID: "10"                        # Your org/project board ID
+          COLUMN_NAME: "In Progress"            # Name of the column to add issues to
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Fetching column ID for '$COLUMN_NAME'..."
+          COLUMN_ID=$(curl -s -H "Authorization: bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/orgs/LiDRON7/projects/$BOARD_ID/columns \
+            | jq -r ".columns[] | select(.name==\"$COLUMN_NAME\") | .id")
+
+          echo "Column ID is $COLUMN_ID"
+          
+          ISSUE_ID=$(curl -s -H "Authorization: bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER \
+            | jq -r .id)
+
+          echo "Adding issue $ISSUE_ID to column $COLUMN_ID..."
+          curl -s -X POST -H "Authorization: bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/projects/columns/$COLUMN_ID/cards \
+            -d "{\"content_id\": $ISSUE_ID, \"content_type\": \"Issue\"}"
+
+          echo "Done!"
