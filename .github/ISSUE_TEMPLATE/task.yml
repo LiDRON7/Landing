@@ -1,9 +1,6 @@
 ---
 name: "📝 New Task / Issue"
 about: "Create a new issue with objective, description, tasks, and due date"
-title: ""
-labels: ""
-assignees: ""
 ---
 
 # 📝 Title
