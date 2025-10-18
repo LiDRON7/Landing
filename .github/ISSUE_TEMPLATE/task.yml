@@ -1,22 +1,45 @@
----
-name: "New Task / Issue"
+name: "📝 New Task / Issue"
 description: "Create a new issue with objective, description, tasks, and due date"
 title: "New Task / Issue"
 labels: []
-assignees: []
----
 
-Title: Enter a short title for this issue.
+body:
+  - type: input
+    id: title
+    attributes:
+      label: "Title"
+      description: "Enter a short title for this issue"
+      placeholder: "Short summary of the task"
+      required: true
 
-Objective: Describe the main goal or purpose of this task/issue.
+  - type: textarea
+    id: objective
+    attributes:
+      label: "Objective"
+      description: "Describe the main goal or purpose of this task"
+      placeholder: "Objective"
+      required: true
 
-Description: Provide details about what needs to be done.
-- Include relevant notes, context, or constraints.
-- Mention dependencies or related modules if needed.
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "Provide details about what needs to be done"
+      placeholder: "Details, notes, dependencies"
 
-To Do:
-- [ ] Task 1
-- [ ] Task 2
-- [ ] Task 3
+  - type: checkboxes
+    id: todo
+    attributes:
+      label: "To Do"
+      description: "Tasks that need to be completed"
+      options:
+        - "Task 1"
+        - "Task 2"
+        - "Task 3"
 
-Due Date: Specify the target completion date.
+  - type: input
+    id: due_date
+    attributes:
+      label: "Due Date"
+      description: "Specify the target completion date"
+      placeholder: "YYYY-MM-DD"
