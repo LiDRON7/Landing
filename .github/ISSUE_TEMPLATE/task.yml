@@ -6,18 +6,18 @@ assignees: []
 ---
 
 # 📝 Title
-Provide a brief, clear title for the issue.
+Enter a short title for this issue.  
 
 ## 🎯 Objective
-Describe the main goal or purpose of this task/issue.
+Describe the main goal or purpose of this task/issue.  
 
 ## 📄 Description
 Provide details about what needs to be done:
-- Include any relevant notes, context, or constraints.
+- Include relevant notes, context, or constraints.
 - Mention dependencies or related modules if needed.
 
 ## ✅ To Do
-List the specific tasks that need to be completed:
+List the tasks that need to be completed:
 - [ ] Task 1
 - [ ] Task 2
 - [ ] Task 3
