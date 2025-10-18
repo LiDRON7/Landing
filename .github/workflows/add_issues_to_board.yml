@@ -16,8 +16,10 @@ jobs:
       - name: Check if issue has a tracked label
         id: check_label
         run: |
-          LABELS="${{ github.event.issue.labels.*.name }}"
+          # Convert labels array to a space-separated string
+          LABELS="${{ join(github.event.issue.labels.*.name, ' ') }}"
           echo "Issue labels: $LABELS"
+
           TARGET_LABELS="Landing Path-Planning Obstacle-Avoidance Sensor-Control-Data-Gathering Telemetry-Communication Artificial-Intelligence"
           for l in $TARGET_LABELS; do
             if [[ "$LABELS" == *"$l"* ]]; then
