@@ -62,9 +62,9 @@ RUN git clone --branch v1.14.3 --recursive https://github.com/PX4/PX4-Autopilot.
 # installing px4 simulation dependencies
 RUN /px4/Tools/setup/ubuntu.sh --no-nuttx
 
-# building px4 sitl with gazebo classic
+# building px4 sitl with gazebo classic with limited parallelism to prevent OOM
 WORKDIR /px4
-RUN make -j1 px4_sitl_default
+RUN MAKEFLAGS="-j1" make px4_sitl_default
 
 # Setup VNC (only used when ENABLE_VNC=true)
 ENV DISPLAY=:99
