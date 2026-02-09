@@ -213,14 +213,6 @@ pwd  # Should show /px4
 make px4_sitl_default gazebo
 ```
 
-### Low Frame Rate in Gazebo
-
-Software rendering is slower than GPU acceleration. This is expected on macOS with Docker. Tips:
-
-- Close other applications to free up resources
-- Use simpler Gazebo worlds
-- Reduce real-time factor in Gazebo
-
 ### Can't Find Container ID
 
 ```bash
@@ -229,34 +221,6 @@ docker ps
 
 # List all containers (including stopped)
 docker ps -a
-```
-
-## Quick Command Reference
-
-```bash
-# Build image
-docker build -t px4-gazebo .
-
-# Run with VNC
-docker run -it -e ENABLE_VNC=true -p 5900:5900 --memory="6g" px4-gazebo
-
-# List containers
-docker ps
-
-# Execute command in running container
-docker exec -it <container_id> bash -c "cd /px4 && make px4_sitl_default gazebo"
-
-# Stop container
-docker stop <container_id>
-
-# Remove container
-docker rm <container_id>
-
-# Remove all stopped containers
-docker container prune
-
-# Remove image
-docker rmi px4-gazebo
 ```
 
 ## Resources
