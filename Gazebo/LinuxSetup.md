@@ -35,7 +35,11 @@ sudo usermod -aG docker $USER
 
 # Log out and log back in for group changes to take effect
 ```
+### Ubuntu/Debian
 
+```bash
+sudo systemctl start docker
+```
 ### Fedora/RHEL
 
 ```bash
@@ -73,6 +77,7 @@ From the `Landing/Gazebo` directory:
 docker build -t px4-gazebo .
 ```
 
+**If not building** make sure you built docker
 **Expected build time:** 20-40 minutes depending on your system.
 
 ## Step 4: Enable X11 Forwarding
@@ -83,8 +88,7 @@ Allow Docker to access your X server:
 xhost +local:docker
 ```
 
-> **Note:** This grants Docker containers access to your display. For better security in production, use more restrictive xhost settings.
-
+> **Note:** This grants Docker containers access to your display.
 ## Step 5: Run the Container
 
 Start the container with X11 forwarding:
@@ -94,7 +98,7 @@ docker run -it \
   --env DISPLAY=$DISPLAY \
   --env QT_X11_NO_MITSHM=1 \
   --volume /tmp/.X11-unix:/tmp/.X11-unix:rw \
-  --memory="8g" \
+  --memory="16g" \
   px4-gazebo
 ```
 
@@ -103,8 +107,7 @@ docker run -it \
 - `--env DISPLAY=$DISPLAY` - Forwards your display to the container
 - `--env QT_X11_NO_MITSHM=1` - Fixes Qt rendering issues
 - `--volume /tmp/.X11-unix:/tmp/.X11-unix:rw` - Mounts X11 socket
-- `--memory="8g"` - Limits container to 8GB RAM
-
+- `--memory="16g"` - Limits container to 8GB RAM
 You should get a bash prompt inside the container:
 
 ```
@@ -119,8 +122,7 @@ From inside the container:
 cd /px4
 make px4_sitl_default gazebo
 ```
-
-**Gazebo will launch directly on your Linux desktop!** No VNC needed.
+**IMPORTANT** If this step fails, its probably because you put either too much ram or too little when starting the container, go back to step 5 and adjust the memory ammount
 
 ## Step 7: Verify Simulation
 
@@ -190,19 +192,6 @@ docker ps        # Running containers
 docker ps -a     # All containers
 ```
 
-### Restart Existing Container
-
-```bash
-# Start the container
-docker start <container_id>
-
-# Attach to it
-docker attach <container_id>
-
-# Or execute Gazebo directly
-xhost +local:docker  # Re-enable X11 if you rebooted
-docker exec -it <container_id> bash -c "cd /px4 && make px4_sitl_default gazebo"
-```
 
 ## Troubleshooting
 
@@ -288,66 +277,6 @@ docker run -it \
   px4-gazebo
 ```
 
-## QGroundControl (Optional)
-
-For mission planning:
-
-### Ubuntu/Debian
-
-```bash
-sudo usermod -a -G dialout $USER
-sudo apt-get remove modemmanager -y
-sudo apt install gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl -y
-
-# Download AppImage from https://qgroundcontrol.com/
-chmod +x ./QGroundControl.AppImage
-./QGroundControl.AppImage
-```
-
-It should auto-detect the simulation on UDP port 14550.
-
-## Running Without Container (Alternative)
-
-If you prefer to install PX4 natively:
-
-```bash
-git clone --branch v1.14.3 --recursive https://github.com/PX4/PX4-Autopilot.git
-cd PX4-Autopilot
-bash ./Tools/setup/ubuntu.sh
-make px4_sitl_default gazebo
-```
-
-## Quick Reference
-
-```bash
-# Build image
-docker build -t px4-gazebo .
-
-# Enable X11
-xhost +local:docker
-
-# Run container
-docker run -it \
-  --env DISPLAY=$DISPLAY \
-  --volume /tmp/.X11-unix:/tmp/.X11-unix:rw \
-  --memory="8g" \
-  px4-gazebo
-
-# Launch Gazebo (inside container)
-cd /px4 && make px4_sitl_default gazebo
-
-# List containers
-docker ps
-
-# Stop container
-docker stop <container_id>
-
-# Remove container
-docker rm <container_id>
-
-# Clean up all stopped containers
-docker container prune
-```
 
 ## Resources
 
