@@ -8,7 +8,7 @@ def run_preprocessing_pipeline(msg: PointCloud2) -> PointCloud2:
     # This function will run the entire preprocessing pipeline for the LiDAR data.
 
     # example:
-    # filtered_msg = voxel_grid_downsampling(msg)
+    filtered_msg = voxel_grid_downsampling(msg)
     # filtered_msg = passthrough_filter(filtered_msg)
 
-    return msg
+    return filtered_msg
