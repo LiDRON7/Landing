@@ -266,4 +266,12 @@ Ctrl + C
 exit
 ```
 
-
+``` bash
+docker run -it --name landing_dev \
+  --net=host \
+  -e DISPLAY=$DISPLAY \
+  -e QT_X11_NO_MITSHM=1 \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v /mnt/c/Users/brian/OneDrive/Desktop/LiDron/Landing_repo/Landing:/Landing \
+  px4-gazebo bash
+```
