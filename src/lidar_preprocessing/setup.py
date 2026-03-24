@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools', 'numpy', 'pcl', 'sensor_msgs_py'],
+    install_requires=['setuptools'],
     zip_safe=True,
     maintainer='brian',
     maintainer_email='brianyariel.rm@gmail.com',

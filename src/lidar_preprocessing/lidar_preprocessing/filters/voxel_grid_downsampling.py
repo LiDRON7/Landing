@@ -1,37 +1,71 @@
-# Imports
-import numpy as np
-import sensor_msgs_py.point_cloud2 as pc2
+import struct
+import math
 from sensor_msgs.msg import PointCloud2
-import pcl  #wrapper for PCL in Python
 
+def voxel_grid_downsampling(point_cloud: PointCloud2, voxel_size: float) -> PointCloud2:
+    # 1. Basic check
+    if not point_cloud.data:
+        return point_cloud
 
-    
-"""
-    Voxel grid downsampling is a technique used to reduce the number of points in a point cloud while preserving the overall structure.
-    The idea is to divide the space into a 3D grid of voxels (cubic cells) and replace all points that fall within the same voxel with a single representative point, 
-    typically the centroid of the points in that voxel. This process effectively reduces the density of the point cloud while maintaining its geometric features.
-"""
-def voxel_grid_downsampling(point_cloud : PointCloud2, voxel_size : float) -> PointCloud2:
-    # Implementation for voxel grid downsampling
-    points_np = np.array(list(pc2.read_points(point_cloud, field_names=("x", "y", "z"), skip_nans=True)), dtype=np.float32)
-    
-    if points_np.size == 0:
-        return point_cloud  # Return the original point cloud if it's empty
-    
-    #convert the numpy array to a PCL PointCloud format
-    cloud = pcl.PointCloud()
-    cloud.from_array(points_np)
-    
-    #apply voxel grid downsampling
-    vg = cloud.make_voxel_grid_filter()
-    vg.set_leaf_size(voxel_size, voxel_size, voxel_size)
-    cloud_filtered = vg.filter()
-    
-    # Convert back to ROS PointCloud2
-    final_points = cloud_filtered.to_array()
-    filtered_msg = pc2.create_cloud_xyz32(point_cloud.header, final_points)
-    
-    return filtered_msg
+    # Extract points from the byte array
+    # PointCloud2 data is usually packed as (x, y, z) + other fields.
+    point_step = point_cloud.point_step
+    data = point_cloud.data
+    voxels = {}
 
+    for i in range(0, len(data), point_step):
+        # Unpack 3 floats (x, y, z) - 'fff' means 3 floats (4 bytes each)
+        try:
+            x, y, z = struct.unpack_from('fff', data, i)
+            
+            if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
+                continue
 
+        except struct.error:
+            continue
 
+        # 3. Find the Voxel Index
+        vx = int(x // voxel_size)
+        vy = int(y // voxel_size)
+        vz = int(z // voxel_size)
+        voxel_key = (vx, vy, vz)
+
+        # Store points in the voxel to calculate the average later
+        if voxel_key not in voxels:
+            voxels[voxel_key] = [0.0, 0.0, 0.0, 0] # sum_x, sum_y, sum_z, count
+        
+        voxels[voxel_key][0] += x
+        voxels[voxel_key][1] += y
+        voxels[voxel_key][2] += z
+        voxels[voxel_key][3] += 1
+
+    # Calculate Centroids and build new byte array
+    new_data = bytearray()
+    for key in voxels:
+        sum_x, sum_y, sum_z, count = voxels[key]
+        # Average the points in this voxel
+        avg_x = sum_x / count
+        avg_y = sum_y / count
+        avg_z = sum_z / count
+        
+        # Pack the 3 floats back into bytes
+        new_data.extend(struct.pack('fff', avg_x, avg_y, avg_z))
+        
+        # Padding to maintain the original point_step structure
+        padding = point_step - 12
+        if padding > 0:
+            new_data.extend(b'\x00' * padding)
+
+    # 6. Create the output message
+    downsampled_cloud = PointCloud2()
+    downsampled_cloud.header = point_cloud.header
+    downsampled_cloud.height = 1
+    downsampled_cloud.width = len(voxels)
+    downsampled_cloud.fields = point_cloud.fields
+    downsampled_cloud.is_bigendian = point_cloud.is_bigendian
+    downsampled_cloud.point_step = point_cloud.point_step
+    downsampled_cloud.row_step = downsampled_cloud.width * point_cloud.point_step
+    downsampled_cloud.is_dense = point_cloud.is_dense
+    downsampled_cloud.data = bytes(new_data)
+
+    return downsampled_cloud
