@@ -20,14 +20,15 @@ def voxel_grid_downsampling(point_cloud: PointCloud2, voxel_size: float) -> Poin
             
             if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
                 continue
+            # -----------------------------------------------
 
         except struct.error:
             continue
 
         # 3. Find the Voxel Index
-        vx = int(x // voxel_size)
-        vy = int(y // voxel_size)
-        vz = int(z // voxel_size)
+        vx = int(math.floor(x / voxel_size + 1e-9))
+        vy = int(math.floor(y / voxel_size + 1e-9))
+        vz = int(math.floor(z / voxel_size + 1e-9))
         voxel_key = (vx, vy, vz)
 
         # Store points in the voxel to calculate the average later
