@@ -39,8 +39,9 @@ class LidarPreprocessingNode(Node):
 
     
     def pointcloud_callback(self, msg: PointCloud2):
-        # This function is called whenever a new PointCloud2 message is received on the input topic
-        self.get_logger().info('Received point cloud message')
+        # Calculate points before filtering
+        # PointCloud2 is 2D (width x height). If it's "unorganized", height is 1.
+        num_points_before = msg.width * msg.height
 
         roi = {
             'x_min': float(self.get_parameter('roi.x_min').value),
@@ -54,9 +55,26 @@ class LidarPreprocessingNode(Node):
         # Run the preprocessing pipeline on the incoming point cloud message
         filtered_msg = run_preprocessing_pipeline(msg, roi=roi)
 
-        # Publish the processed point cloud message to the output topic
+        # Calculate points after filtering
+        num_points_after = filtered_msg.width * filtered_msg.height
+
+        # Calculate reduction percentage
+        if num_points_before > 0:
+            reduction = (1 - (num_points_after / num_points_before)) * 100
+        else:
+            reduction = 0
+
+        # Print 
+        self.get_logger().info(
+            f'--- Filter Stats ---\n'
+            f'Original: {num_points_before} points\n'
+            f'Filtered: {num_points_after} points\n'
+            f'Reduced by: {reduction:.2f}%\n'
+            f'--------------------'
+        )
+
+        # Publish the processed point cloud message
         self.publisher.publish(filtered_msg)
-        self.get_logger().info('Published filtered point cloud message')
 
 
 
