@@ -19,6 +19,13 @@ class LidarPreprocessingNode(Node):
         self.input_topic = '/lidar/points/points'  # The topic to subscribe to for incoming point cloud data
         self.output_topic = '/lidar/points/filtered'  # The topic to publish the processed point cloud data
 
+        self.declare_parameter('roi.x_min', -10.0)
+        self.declare_parameter('roi.x_max', 10.0)
+        self.declare_parameter('roi.y_min', -10.0)
+        self.declare_parameter('roi.y_max', 10.0)
+        self.declare_parameter('roi.z_min', -2.0)
+        self.declare_parameter('roi.z_max', 5.0)
+
         
         # Listen to the input topic and call the pointcloud_callback function whenever a new message is received
         # 10 is the queue size, determines how many messages to buffer if the processing is slower than the incoming data rate
@@ -36,8 +43,17 @@ class LidarPreprocessingNode(Node):
         # PointCloud2 is 2D (width x height). If it's "unorganized", height is 1.
         num_points_before = msg.width * msg.height
 
-        # Run the preprocessing pipeline
-        filtered_msg = run_preprocessing_pipeline(msg)
+        roi = {
+            'x_min': float(self.get_parameter('roi.x_min').value),
+            'x_max': float(self.get_parameter('roi.x_max').value),
+            'y_min': float(self.get_parameter('roi.y_min').value),
+            'y_max': float(self.get_parameter('roi.y_max').value),
+            'z_min': float(self.get_parameter('roi.z_min').value),
+            'z_max': float(self.get_parameter('roi.z_max').value),
+        }
+
+        # Run the preprocessing pipeline on the incoming point cloud message
+        filtered_msg = run_preprocessing_pipeline(msg, roi=roi)
 
         # Calculate points after filtering
         num_points_after = filtered_msg.width * filtered_msg.height

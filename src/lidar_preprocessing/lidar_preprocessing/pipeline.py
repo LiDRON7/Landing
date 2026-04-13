@@ -5,11 +5,25 @@ from .filters.voxel_grid_downsampling import voxel_grid_downsampling
 from .filters.outlier_removal import outlier_removal
 from .filters.ground_segmentation import ransac_ground_segmentation
 
-def run_preprocessing_pipeline(msg: PointCloud2) -> PointCloud2:
+def run_preprocessing_pipeline(
+    msg: PointCloud2,
+    roi: dict[str, float] | None = None,
+) -> PointCloud2:
     # This function will run the entire preprocessing pipeline for the LiDAR data.
 
-    # Filter out NaN and infinite points first
+    # Start with the incoming message and apply filters in sequence.
     filtered_msg = nan_infinite_filter(msg)
+
+    if roi is not None:
+        filtered_msg = passthrough_filter(
+            filtered_msg,
+            x_min=roi["x_min"],
+            x_max=roi["x_max"],
+            y_min=roi["y_min"],
+            y_max=roi["y_max"],
+            z_min=roi["z_min"],
+            z_max=roi["z_max"],
+        )
     
     # example of other filters:
     # filtered_msg = voxel_grid_downsampling(filtered_msg)
