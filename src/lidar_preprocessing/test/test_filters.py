@@ -99,6 +99,30 @@ class TestPreprocessingFilters(unittest.TestCase):
         print("  - Far apart points test passed")
         
         print("Voxel_Grid_Downsampling Edge Cases Test Passed")
+    
+    def test_passthrough_filter(self):
+        print("Passthrough Filter Test")
+
+        points = np.array([
+            [0.5, 0.5, 0.5],
+            [1.5, 1.5, 1.5],  # Outside x range
+            [-0.5, 0.5, 0.5], # Outside x range
+            [0.5, 2.5, 0.5],  # Outside y range
+            [0.5, -1.5, 0.5], # Outside y range
+            [0.5, 0.5, 3.5],  # Outside z range
+            [0.5, 0.5, -2.5]  # Outside z range
+        ], dtype=np.float32)
+        pc2_msg = self.create_point_cloud(points)
+
+        filtered_msg = passthrough_filter(pc2_msg, 0.0, 1.0, 0.0, 2.0, 0.0, 3.0)
+        
+        gen = pc2.read_points(filtered_msg, skip_nans=True)
+        filtered_points_structured = np.array(list(gen))
+        filtered_points = filtered_points_structured.view(np.float32).reshape(-1, 3)
+
+        self.assertEqual(len(filtered_points), 1)
+        self.assertTrue(np.allclose(filtered_points[0], [0.5, 0.5, 0.5]))
+        print("Passthrough Filter Test Passed")
 
 if __name__ == '__main__':
     unittest.main()
