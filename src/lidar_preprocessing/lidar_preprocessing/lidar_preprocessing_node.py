@@ -1,4 +1,3 @@
-
 # This imports the ROS2 Python Client Library. It lets python talk to ROS2.
 import rclpy
 
@@ -26,18 +25,25 @@ class LidarPreprocessingNode(Node):
         self.declare_parameter('roi.z_min', -2.0)
         self.declare_parameter('roi.z_max', 5.0)
 
-        
         # Listen to the input topic and call the pointcloud_callback function whenever a new message is received
         # 10 is the queue size, determines how many messages to buffer if the processing is slower than the incoming data rate
-        self.subscription = self.create_subscription(PointCloud2, self.input_topic, self.pointcloud_callback, 10) # Subscriber
+        self.subscription = self.create_subscription(
+            PointCloud2,
+            self.input_topic,
+            self.pointcloud_callback,
+            10
+        )
 
-        self.publisher = self.create_publisher(PointCloud2, self.output_topic, 10) # Publisher        
+        self.publisher = self.create_publisher(
+            PointCloud2,
+            self.output_topic,
+            10
+        )
 
         # Log the topics we are subscribing to and publishing to
         self.get_logger().info(f'Subscribed to {self.input_topic}')
         self.get_logger().info(f'Publishing to {self.output_topic}')
 
-    
     def pointcloud_callback(self, msg: PointCloud2):
         # Calculate points before filtering
         # PointCloud2 is 2D (width x height). If it's "unorganized", height is 1.
@@ -58,25 +64,23 @@ class LidarPreprocessingNode(Node):
         # Calculate points after filtering
         num_points_after = filtered_msg.width * filtered_msg.height
 
-        # Calculate reduction percentage
+        # Calculate removed points and reduction percentage
+        removed_points = num_points_before - num_points_after
         if num_points_before > 0:
             reduction = (1 - (num_points_after / num_points_before)) * 100
         else:
-            reduction = 0
+            reduction = 0.0
 
-        # Print 
+        # Print filter statistics
         self.get_logger().info(
-            f'--- Filter Stats ---\n'
-            f'Original: {num_points_before} points\n'
-            f'Filtered: {num_points_after} points\n'
-            f'Reduced by: {reduction:.2f}%\n'
-            f'--------------------'
+            f'Points in: {num_points_before} | '
+            f'Points out: {num_points_after} | '
+            f'Removed: {removed_points} | '
+            f'Reduced by: {reduction:.2f}%'
         )
 
-        # Publish the processed point cloud message
+        # Publish the processed point cloud message to the output topic
         self.publisher.publish(filtered_msg)
-
-
 
 
 def main(args=None):
@@ -85,13 +89,14 @@ def main(args=None):
     node = LidarPreprocessingNode()  # Create an instance of the LidarPreprocessingNode
 
     try:
-        rclpy.spin(node) # Keep the node running
+        rclpy.spin(node)  # Keep the node running
     except KeyboardInterrupt:
         pass  # Allow shutdown on Ctrl+C
+    finally:
+        node.destroy_node()  # Clean up the node
+        if rclpy.ok():
+            rclpy.shutdown()  # Shutdown the ROS2 client library
 
-    node.destroy_node() # Clean up the node
-    rclpy.shutdown() # Shutdown the ROS2 client library
 
-if __name__=='__main__':
+if __name__ == '__main__':
     main()
-

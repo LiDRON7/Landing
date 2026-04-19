@@ -2,7 +2,7 @@ from sensor_msgs.msg import PointCloud2
 from .filters.nan_infinite_filter import nan_infinite_filter
 from .filters.passthrough import passthrough_filter
 from .filters.voxel_grid_downsampling import voxel_grid_downsampling
-from .filters.outlier_removal import outlier_removal
+from .filters.outlier_removal import statistical_outlier_removal
 from .filters.ground_segmentation import ransac_ground_segmentation
 
 def run_preprocessing_pipeline(
@@ -24,9 +24,10 @@ def run_preprocessing_pipeline(
             z_min=roi["z_min"],
             z_max=roi["z_max"],
         )
-    
-    # example of other filters:
-    # filtered_msg = voxel_grid_downsampling(filtered_msg)
-    # filtered_msg = passthrough_filter(filtered_msg)
+      
+
+
+
+    filtered_msg = statistical_outlier_removal(msg)
 
     return filtered_msg
