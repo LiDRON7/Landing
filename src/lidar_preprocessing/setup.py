@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools', 'numpy'],
+    install_requires=['setuptools', 'numpy', 'open3d'],
     zip_safe=True,
     maintainer='brian',
     maintainer_email='brianyariel.rm@gmail.com',
