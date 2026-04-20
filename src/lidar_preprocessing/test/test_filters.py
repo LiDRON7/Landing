@@ -6,6 +6,7 @@ from std_msgs.msg import Header
 
 from lidar_preprocessing.filters.voxel_grid_downsampling import voxel_grid_downsampling
 from lidar_preprocessing.filters.passthrough import passthrough_filter
+from lidar_preprocessing.filters.nan_infinite_filter import nan_infinite_filter
 
 
 """
@@ -30,16 +31,30 @@ This will execute all the filter tests defined in this file.
 class TestPreprocessingFilters(unittest.TestCase):
 
     def create_point_cloud(self, points):
-        """Creates a PointCloud2 message using official ROS 2 tools."""
+        """
+        Helper method to wrap a NumPy array into a ROS 2 PointCloud2 message.
+
+        Args:
+            points (np.ndarray): An Nx3 array of float32 coordinates.
+
+        Returns:
+            sensor_msgs.msg.PointCloud2: A message ready for filter processing.
+        """
         header = Header()
         header.frame_id = 'test_frame'
-        # points should be a Nx3 numpy array
+        # Convert Nx3 numpy array to the ROS 2 PointCloud2 format
         return pc2.create_cloud_xyz32(header, points.astype(np.float32))
 
     def test_voxel_grid_downsampling(self):
-
+        """
+        Validates that the voxel grid filter correctly reduces point density.
+        
+        Logic: Points within the same 'leaf size' (0.1m) should be merged into 
+        one single centroid point.
+        """
         print("Voxel_Grid_Downsampling dummy test")
 
+        # Two points in the [0,0,0] voxel, two in the [0.5, 0.5, 0.5] voxel
         points = np.array([
             [0.0, 0.0, 0.0],
             [0.01, 0.01, 0.01],
@@ -48,22 +63,25 @@ class TestPreprocessingFilters(unittest.TestCase):
         ], dtype=np.float32)
         pc2_msg = self.create_point_cloud(points)
 
-        # Apply filtering
+        # Apply filtering with a 0.1m cube leaf size
         leaf_size = 0.1
         downsampled_msg = voxel_grid_downsampling(pc2_msg, leaf_size)
         
-        # Convert back to numpy to check length
-        # read_points returns a generator of (x, y, z) tuples
+        # Extract points from the resulting ROS message
         gen = pc2.read_points(downsampled_msg, skip_nans=True)
         downsampled_points = np.array(list(gen))
 
+        # We expect 2 points (one for each voxel occupied)
         self.assertEqual(len(downsampled_points), 2)
         print("Voxel_Grid_Downsampling Test Passed")
     
     def test_voxel_grid_downsampling_edge_cases(self):
+        """
+        Checks behavior against empty clouds, identical voxels, and sparse data.
+        """
         print("Voxel_Grid_Downsampling Edge Cases Test")
 
-        # Test with an empty point cloud
+        # 1. EMPTY CLOUD: Should return 0 points without crashing
         points_empty = np.array([], dtype=np.float32).reshape(0, 3)
         pc2_msg_empty = self.create_point_cloud(points_empty)
         downsampled_msg_empty = voxel_grid_downsampling(pc2_msg_empty, 0.1)
@@ -72,7 +90,7 @@ class TestPreprocessingFilters(unittest.TestCase):
         self.assertEqual(len(downsampled_points_empty), 0)
         print("  - Empty cloud test passed")
 
-        # Test with all points in the same voxel
+        # 2. SAME VOXEL: Multiple points very close together should become 1
         points_same_voxel = np.array([
             [0.0, 0.0, 0.0],
             [0.01, 0.02, 0.03],
@@ -85,7 +103,7 @@ class TestPreprocessingFilters(unittest.TestCase):
         self.assertEqual(len(downsampled_points_same_voxel), 1)
         print("  - Same voxel test passed")
 
-        # Test with points far apart, should not be downsampled
+        # 3. FAR APART: Points in separate voxels should all be preserved
         points_far_apart = np.array([
             [0.0, 0.0, 0.0],
             [1.0, 1.0, 1.0],
@@ -101,28 +119,67 @@ class TestPreprocessingFilters(unittest.TestCase):
         print("Voxel_Grid_Downsampling Edge Cases Test Passed")
     
     def test_passthrough_filter(self):
+        """
+        Validates the cropping logic of the passthrough filter.
+        
+        Points outside the specified [min, max] ranges for X, Y, or Z 
+        should be discarded.
+        """
         print("Passthrough Filter Test")
 
         points = np.array([
-            [0.5, 0.5, 0.5],
-            [1.5, 1.5, 1.5],  # Outside x range
-            [-0.5, 0.5, 0.5], # Outside x range
-            [0.5, 2.5, 0.5],  # Outside y range
-            [0.5, -1.5, 0.5], # Outside y range
-            [0.5, 0.5, 3.5],  # Outside z range
-            [0.5, 0.5, -2.5]  # Outside z range
+            [0.5, 0.5, 0.5],  # Inside all ranges
+            [1.5, 1.5, 1.5],  # Outside X max (1.0)
+            [-0.5, 0.5, 0.5], # Outside X min (0.0)
+            [0.5, 2.5, 0.5],  # Outside Y max (2.0)
+            [0.5, -1.5, 0.5], # Outside Y min (0.0)
+            [0.5, 0.5, 3.5],  # Outside Z max (3.0)
+            [0.5, 0.5, -2.5]  # Outside Z min (0.0)
         ], dtype=np.float32)
         pc2_msg = self.create_point_cloud(points)
 
+        # Apply filter with bounds: X[0,1], Y[0,2], Z[0,3]
         filtered_msg = passthrough_filter(pc2_msg, 0.0, 1.0, 0.0, 2.0, 0.0, 3.0)
         
         gen = pc2.read_points(filtered_msg, skip_nans=True)
         filtered_points_structured = np.array(list(gen))
+        # Flatten structured array back to standard coordinate format
         filtered_points = filtered_points_structured.view(np.float32).reshape(-1, 3)
 
+        # Only the first point should remain
         self.assertEqual(len(filtered_points), 1)
         self.assertTrue(np.allclose(filtered_points[0], [0.5, 0.5, 0.5]))
         print("Passthrough Filter Test Passed")
+    
+    def test_nan_infinite_filter(self):
+        """
+        Ensures that invalid numerical values (NaN, Inf) are removed.
+        
+        This prevents downstream algorithms (like SLAM or clustering) from 
+        crashing due to floating-point errors.
+        """
+        print("NaN/Infinite Filter Test")
+
+        points = np.array([
+            [0.0, 0.0, 0.0],    # Valid
+            [1.0, 1.0, np.nan], # Not a Number
+            [2.0, np.inf, 2.0], # Positive Infinity
+            [np.NINF, 3.0, 3.0],# Negative Infinity
+            [4.0, 4.0, 4.0]     # Valid
+        ], dtype=np.float32)
+        pc2_msg = self.create_point_cloud(points)
+
+        filtered_msg = nan_infinite_filter(pc2_msg)
+        
+        gen = pc2.read_points(filtered_msg, skip_nans=False)
+        filtered_points_structured = np.array(list(gen))
+        filtered_points = filtered_points_structured.view(np.float32).reshape(-1, 3)
+
+        # Expect only the 1st and 5th points to survive
+        self.assertEqual(len(filtered_points), 2)
+        self.assertTrue(np.allclose(filtered_points, [[0.0, 0.0, 0.0], [4.0, 4.0, 4.0]]))
+        print("NaN/Infinite Filter Test Passed")
 
 if __name__ == '__main__':
+    # Entry point for running tests via 'python3 test_filters.py'
     unittest.main()
