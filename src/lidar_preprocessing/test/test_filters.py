@@ -7,6 +7,7 @@ from std_msgs.msg import Header
 from lidar_preprocessing.filters.voxel_grid_downsampling import voxel_grid_downsampling
 from lidar_preprocessing.filters.passthrough import passthrough_filter
 from lidar_preprocessing.filters.nan_infinite_filter import nan_infinite_filter
+from lidar_preprocessing.filters.outlier_removal import statistical_outlier_removal
 
 
 """
@@ -179,6 +180,72 @@ class TestPreprocessingFilters(unittest.TestCase):
         self.assertEqual(len(filtered_points), 2)
         self.assertTrue(np.allclose(filtered_points, [[0.0, 0.0, 0.0], [4.0, 4.0, 4.0]]))
         print("NaN/Infinite Filter Test Passed")
+
+
+class TestStatisticalFilter(unittest.TestCase):
+
+    def create_point_cloud(self, points):
+            header = Header()
+            header.frame_id = 'test_frame'
+            return pc2.create_cloud_xyz32(header, points.astype(np.float32))
+
+    def test_statistical_outlier_filter(self):
+        # Checks that SOR removes isolated noise points while keeping clustered points.
+
+        print("Statistical Outlier Filter Test")
+
+        points = np.array([
+            [0.0, 0.0, 0.0],
+            [0.01, 0.0, 0.0],
+            [0.0, 0.01, 0.0],
+            [0.01, 0.01, 0.0],
+            [5.0, 5.0, 5.0]   # Outlier
+        ], dtype=np.float32)
+
+        pc2_msg = self.create_point_cloud(points)
+
+        filtered_msg = statistical_outlier_removal(pc2_msg, meanK=3, threshold=1)
+
+        gen = pc2.read_points(filtered_msg, skip_nans=False)
+        filtered_points_structured = np.array(list(gen))
+        filtered_points = filtered_points_structured.view(np.float32).reshape(-1, 3)
+
+        # The far point should be removed
+        self.assertEqual(len(filtered_points), 4)
+
+        # Make sure the outlier is not present
+        self.assertFalse(
+            np.any(np.all(np.isclose(filtered_points, [5.0, 5.0, 5.0]), axis=1))
+        )
+
+    def test_statistical_outlier_filter_empty_cloud(self):
+        points = np.array([], dtype=np.float32).reshape(0, 3)
+        pc2_msg = self.create_point_cloud(points)
+
+        filtered_msg = statistical_outlier_removal(pc2_msg, meanK=30, threshold=2)
+
+        gen = pc2.read_points(filtered_msg, skip_nans=True)
+        filtered_points = np.array(list(gen))
+
+        self.assertEqual(len(filtered_points), 0)
+
+    def test_statistical_outlier_filter_no_outliers(self):
+        points = np.array([
+            [0.0, 0.0, 0.0],
+            [0.01, 0.0, 0.0],
+            [0.0, 0.01, 0.0],
+            [0.01, 0.01, 0.0]
+        ], dtype=np.float32)
+
+        pc2_msg = self.create_point_cloud(points)
+
+        filtered_msg = statistical_outlier_removal(pc2_msg, meanK=2, threshold=2)
+
+        gen = pc2.read_points(filtered_msg, skip_nans=True)
+        filtered_points_structured = np.array(list(gen))
+        filtered_points = filtered_points_structured.view(np.float32).reshape(-1, 3)
+
+        self.assertEqual(len(filtered_points), 4)
 
 if __name__ == '__main__':
     # Entry point for running tests via 'python3 test_filters.py'
