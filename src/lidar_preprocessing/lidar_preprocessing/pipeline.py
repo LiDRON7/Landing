@@ -8,6 +8,7 @@ from .filters.ground_segmentation import ransac_ground_segmentation
 def run_preprocessing_pipeline(
     msg: PointCloud2,
     roi: dict[str, float] | None = None,
+    ransac_params: dict[str, float] | None = None,
 ) -> PointCloud2:
     # This function will run the entire preprocessing pipeline for the LiDAR data.
 
@@ -29,7 +30,14 @@ def run_preprocessing_pipeline(
 
     # NOTE: Julian when implementing RANSAC delete this and change it to recieve from the function 
     # Example: ground_msg, obstacles_msg = ransac_ground_segmentation(filtered_msg)
-    ground_msg = filtered_msg
-    obstacles_msg = filtered_msg
+    # ground_msg = filtered_msg
+    # obstacles_msg = filtered_msg
+
+    #without using filters [ FOR NOW ]
+    ground_msg, obstacles_msg = ransac_ground_segmentation(
+            msg,
+            dist_threshold=ransac_params["dist_threshold"],
+            num_iterations=ransac_params["num_iterations"],
+        )
 
     return filtered_msg, ground_msg, obstacles_msg

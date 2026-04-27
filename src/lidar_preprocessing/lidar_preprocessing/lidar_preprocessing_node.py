@@ -28,6 +28,9 @@ class LidarPreprocessingNode(Node):
         self.declare_parameter('roi.z_min', -2.0)
         self.declare_parameter('roi.z_max', 5.0)
 
+        self.declare_parameter('ransac.dist_threshold', 0.2)
+        self.declare_parameter('ransac.num_iterations', 100)
+
         # Listen to the input topic and call the pointcloud_callback function whenever a new message is received
         # 10 is the queue size, determines how many messages to buffer if the processing is slower than the incoming data rate
         self.subscription = self.create_subscription(
@@ -76,8 +79,13 @@ class LidarPreprocessingNode(Node):
             'z_max': float(self.get_parameter('roi.z_max').value),
         }
 
+        ransac_params = {
+            'dist_threshold': float(self.get_parameter('ransac.dist_threshold').value),
+            'num_iterations': int(self.get_parameter('ransac.num_iterations').value),
+        }
+
         # Run the preprocessing pipeline on the incoming point cloud message
-        filtered_msg, ground_msg, obstacles_msg = run_preprocessing_pipeline(msg, roi=roi)
+        filtered_msg, ground_msg, obstacles_msg = run_preprocessing_pipeline(msg, roi=roi, ransac_params=ransac_params)
 
         # Calculate points after filtering
         num_points_after = filtered_msg.width * filtered_msg.height
