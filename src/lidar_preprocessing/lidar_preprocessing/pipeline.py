@@ -24,10 +24,12 @@ def run_preprocessing_pipeline(
             z_min=roi["z_min"],
             z_max=roi["z_max"],
         )
-      
-
-
 
     filtered_msg = statistical_outlier_removal(msg)
 
-    return filtered_msg
+    # NOTE: Julian when implementing RANSAC delete this and change it to recieve from the function 
+    # Example: ground_msg, obstacles_msg = ransac_ground_segmentation(filtered_msg)
+    ground_msg = filtered_msg
+    obstacles_msg = filtered_msg
+
+    return filtered_msg, ground_msg, obstacles_msg

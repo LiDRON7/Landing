@@ -18,6 +18,9 @@ class LidarPreprocessingNode(Node):
         self.input_topic = '/lidar/points/points'  # The topic to subscribe to for incoming point cloud data
         self.output_topic = '/lidar/points/filtered'  # The topic to publish the processed point cloud data
 
+        self.ground_topic = '/lidar/points/ground'
+        self.obstacles_topic = '/lidar/points/obstacles'
+
         self.declare_parameter('roi.x_min', -10.0)
         self.declare_parameter('roi.x_max', 10.0)
         self.declare_parameter('roi.y_min', -10.0)
@@ -40,9 +43,24 @@ class LidarPreprocessingNode(Node):
             10
         )
 
+        self.ground_publisher = self.create_publisher(
+            PointCloud2,
+            self.ground_topic,
+            10
+        )
+
+        self.obstacles_publisher = self.create_publisher(
+            PointCloud2,
+            self.obstacles_topic,
+            10
+        )
+
         # Log the topics we are subscribing to and publishing to
         self.get_logger().info(f'Subscribed to {self.input_topic}')
         self.get_logger().info(f'Publishing to {self.output_topic}')
+
+        self.get_logger().info(f'Publishing ground to {self.ground_topic}')
+        self.get_logger().info(f'Publishing obstacles to {self.obstacles_topic}')
 
     def pointcloud_callback(self, msg: PointCloud2):
         # Calculate points before filtering
@@ -59,7 +77,7 @@ class LidarPreprocessingNode(Node):
         }
 
         # Run the preprocessing pipeline on the incoming point cloud message
-        filtered_msg = run_preprocessing_pipeline(msg, roi=roi)
+        filtered_msg, ground_msg, obstacles_msg = run_preprocessing_pipeline(msg, roi=roi)
 
         # Calculate points after filtering
         num_points_after = filtered_msg.width * filtered_msg.height
@@ -81,7 +99,8 @@ class LidarPreprocessingNode(Node):
 
         # Publish the processed point cloud message to the output topic
         self.publisher.publish(filtered_msg)
-
+        self.ground_publisher.publish(ground_msg)
+        self.obstacles_publisher.publish(obstacles_msg)
 
 def main(args=None):
     rclpy.init(args=args)  # Initialize the ROS2 Python client library
