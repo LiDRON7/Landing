@@ -7,6 +7,7 @@ from std_msgs.msg import Header
 from lidar_preprocessing.filters.voxel_grid_downsampling import voxel_grid_downsampling
 from lidar_preprocessing.filters.passthrough import passthrough_filter
 from lidar_preprocessing.filters.nan_infinite_filter import nan_infinite_filter
+from lidar_preprocessing.filters.ground_segmentation import ransac_ground_segmentation
 
 
 """
@@ -164,7 +165,7 @@ class TestPreprocessingFilters(unittest.TestCase):
             [0.0, 0.0, 0.0],    # Valid
             [1.0, 1.0, np.nan], # Not a Number
             [2.0, np.inf, 2.0], # Positive Infinity
-            [np.NINF, 3.0, 3.0],# Negative Infinity
+            [-np.inf, 3.0, 3.0],# Negative Infinity
             [4.0, 4.0, 4.0]     # Valid
         ], dtype=np.float32)
         pc2_msg = self.create_point_cloud(points)
@@ -179,6 +180,78 @@ class TestPreprocessingFilters(unittest.TestCase):
         self.assertEqual(len(filtered_points), 2)
         self.assertTrue(np.allclose(filtered_points, [[0.0, 0.0, 0.0], [4.0, 4.0, 4.0]]))
         print("NaN/Infinite Filter Test Passed")
+
+    def test_ransac_ground_segmentation_empty_cloud(self):
+        """
+        Verifies that `ransac_ground_segmentation` returns (None, None)
+        for an empty input cloud.
+        """
+        print("RANSAC Ground Segmentation Empty Cloud Test")
+        points_empty = np.array([], dtype=np.float32).reshape(0, 3)
+        pc2_msg_empty = self.create_point_cloud(points_empty)
+
+        ground_msg, obstacle_msg = ransac_ground_segmentation(
+            pc2_msg_empty, dist_threshold=0.1, num_iterations=10
+        )
+
+        self.assertIsNone(ground_msg)
+        self.assertIsNone(obstacle_msg)
+        print("  - Empty cloud test passed")
+
+    def test_ransac_ground_segmentation_plane_vs_obstacles(self):
+        """
+        Creates a simple cloud where several points lie on z=0 (ground)
+        and a couple of points are elevated (obstacles). Asserts that
+        RANSAC separates them into ground and obstacle messages.
+        """
+        print("RANSAC Ground Segmentation Plane vs Obstacles Test")
+
+        plane_points = [
+            [0.0, 0.0, 0.0],
+            [0.5, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.5, 0.5, 0.0],
+        ]
+        obstacle_points = [
+            [0.2, 0.2, 1.0],
+            [0.8, 0.3, 1.0],
+        ]
+
+        all_points = np.array(plane_points + obstacle_points, dtype=np.float32)
+        pc2_msg = self.create_point_cloud(all_points)
+
+        ground_msg, obstacle_msg = ransac_ground_segmentation(
+            pc2_msg, dist_threshold=0.01, num_iterations=100
+        )
+
+        # Extract points from the resulting ROS messages
+        gen_ground = pc2.read_points(ground_msg, skip_nans=True)
+        gen_obst = pc2.read_points(obstacle_msg, skip_nans=True)
+
+        ground_list = list(gen_ground)
+        try:
+            ground_pts = np.array(ground_list, dtype=np.float32)
+        except Exception:
+            ground_pts = np.array([tuple(p) for p in ground_list], dtype=np.float32)
+
+        obst_list = list(gen_obst)
+        try:
+            obst_pts = np.array(obst_list, dtype=np.float32)
+        except Exception:
+            obst_pts = np.array([tuple(p) for p in obst_list], dtype=np.float32)
+
+        # Expect the six plane points and two obstacle points
+        self.assertEqual(len(ground_pts), 6)
+        self.assertEqual(len(obst_pts), 2)
+        # Check z-values roughly match expected plane/obstacle heights
+        self.assertTrue(np.allclose(ground_pts[:, 2], 0.0, atol=1e-3))
+        self.assertTrue(np.allclose(obst_pts[:, 2], 1.0, atol=1e-3))
+        print("RANSAC Ground Segmentation Plane vs Obstacles Test Passed")
+
+    # Note: RANSAC ground segmentation tests are defined above; duplicate
+    # definitions were removed to avoid running the same tests twice.
 
 if __name__ == '__main__':
     # Entry point for running tests via 'python3 test_filters.py'
