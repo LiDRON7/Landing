@@ -7,7 +7,9 @@ from rclpy.node import Node
 # This imports the PointCloud2 message type, which is used to represent 3D point cloud data.
 from sensor_msgs.msg import PointCloud2
 
-from .pipeline import run_preprocessing_pipeline
+# Ensure your pipeline.py has the 'run_preprocessing_pipeline_with_stats' function updated 
+# to return: filtered_msg, ground_msg, obstacles_msg, stage_counts
+from .pipeline import run_preprocessing_pipeline_with_stats
 
 
 class LidarPreprocessingNode(Node):
@@ -15,12 +17,12 @@ class LidarPreprocessingNode(Node):
         # Initialize the node with the name 'lidar_preprocessing_node'
         super().__init__('lidar_preprocessing_node')
 
-        self.input_topic = '/lidar/points/points'  # The topic to subscribe to for incoming point cloud data
-        self.output_topic = '/lidar/points/filtered'  # The topic to publish the processed point cloud data
-
+        self.input_topic = '/lidar/points/points'
+        self.output_topic = '/lidar/points/filtered'
         self.ground_topic = '/lidar/points/ground'
         self.obstacles_topic = '/lidar/points/obstacles'
 
+        # ROI Parameters (Using the wider range from your ransac_unit_test branch)
         self.declare_parameter('roi.x_min', -10.0)
         self.declare_parameter('roi.x_max', 10.0)
         self.declare_parameter('roi.y_min', -10.0)
@@ -28,11 +30,20 @@ class LidarPreprocessingNode(Node):
         self.declare_parameter('roi.z_min', -2.0)
         self.declare_parameter('roi.z_max', 5.0)
 
+        # Filter Toggles from Main
+        self.declare_parameter('filters.enable_nan', True)
+        self.declare_parameter('filters.enable_voxel', True)
+        self.declare_parameter('filters.enable_roi', True)
+        self.declare_parameter('filters.enable_outlier', True)
+
+        # Algorithm Parameters
+        self.declare_parameter('voxel.size', 0.1)
+        self.declare_parameter('outlier.mean_k', 50)
+        self.declare_parameter('outlier.threshold', 3.0)
         self.declare_parameter('ransac.dist_threshold', 0.2)
         self.declare_parameter('ransac.num_iterations', 100)
 
-        # Listen to the input topic and call the pointcloud_callback function whenever a new message is received
-        # 10 is the queue size, determines how many messages to buffer if the processing is slower than the incoming data rate
+        # Subscriptions and Publishers
         self.subscription = self.create_subscription(
             PointCloud2,
             self.input_topic,
@@ -40,36 +51,15 @@ class LidarPreprocessingNode(Node):
             10
         )
 
-        self.publisher = self.create_publisher(
-            PointCloud2,
-            self.output_topic,
-            10
-        )
+        self.publisher = self.create_publisher(PointCloud2, self.output_topic, 10)
+        self.ground_publisher = self.create_publisher(PointCloud2, self.ground_topic, 10)
+        self.obstacles_publisher = self.create_publisher(PointCloud2, self.obstacles_topic, 10)
 
-        self.ground_publisher = self.create_publisher(
-            PointCloud2,
-            self.ground_topic,
-            10
-        )
-
-        self.obstacles_publisher = self.create_publisher(
-            PointCloud2,
-            self.obstacles_topic,
-            10
-        )
-
-        # Log the topics we are subscribing to and publishing to
-        self.get_logger().info(f'Subscribed to {self.input_topic}')
-        self.get_logger().info(f'Publishing to {self.output_topic}')
-
-        self.get_logger().info(f'Publishing ground to {self.ground_topic}')
-        self.get_logger().info(f'Publishing obstacles to {self.obstacles_topic}')
+        # Logging initialization
+        self.get_logger().info(f'Node started. Subscribed to {self.input_topic}')
 
     def pointcloud_callback(self, msg: PointCloud2):
-        # Calculate points before filtering
-        # PointCloud2 is 2D (width x height). If it's "unorganized", height is 1.
-        num_points_before = msg.width * msg.height
-
+        # 1. Extract Parameters
         roi = {
             'x_min': float(self.get_parameter('roi.x_min').value),
             'x_max': float(self.get_parameter('roi.x_max').value),
@@ -84,45 +74,50 @@ class LidarPreprocessingNode(Node):
             'num_iterations': int(self.get_parameter('ransac.num_iterations').value),
         }
 
-        # Run the preprocessing pipeline on the incoming point cloud message
-        filtered_msg, ground_msg, obstacles_msg = run_preprocessing_pipeline(msg, roi=roi, ransac_params=ransac_params)
-
-        # Calculate points after filtering
-        num_points_after = filtered_msg.width * filtered_msg.height
-
-        # Calculate removed points and reduction percentage
-        removed_points = num_points_before - num_points_after
-        if num_points_before > 0:
-            reduction = (1 - (num_points_after / num_points_before)) * 100
-        else:
-            reduction = 0.0
-
-        # Print filter statistics
-        self.get_logger().info(
-            f'Points in: {num_points_before} | '
-            f'Points out: {num_points_after} | '
-            f'Removed: {removed_points} | '
-            f'Reduced by: {reduction:.2f}%'
+        # 2. Run the preprocessing pipeline
+        # Note: We pass both the toggles and the RANSAC settings here
+        filtered_msg, ground_msg, obstacles_msg, stage_counts = run_preprocessing_pipeline_with_stats(
+            msg,
+            roi=roi,
+            ransac_params=ransac_params,
+            voxel_size=float(self.get_parameter('voxel.size').value),
+            enable_nan_filter=bool(self.get_parameter('filters.enable_nan').value),
+            enable_voxel_filter=bool(self.get_parameter('filters.enable_voxel').value),
+            enable_roi_filter=bool(self.get_parameter('filters.enable_roi').value),
+            enable_outlier_filter=bool(self.get_parameter('filters.enable_outlier').value),
+            outlier_mean_k=int(self.get_parameter('outlier.mean_k').value),
+            outlier_threshold=float(self.get_parameter('outlier.threshold').value),
         )
 
-        # Publish the processed point cloud message to the output topic
+        # 3. Calculate Statistics
+        num_points_before = stage_counts['raw_input']
+        num_points_after = stage_counts['after_statistical_outlier']
+        removed_points = num_points_before - num_points_after
+        reduction = (1 - (num_points_after / num_points_before)) * 100 if num_points_before > 0 else 0.0
+
+        # 4. Log detailed stage counts
+        self.get_logger().info(
+            f'Stats | In: {num_points_before} | Out: {num_points_after} | '
+            f'Reduced: {reduction:.2f}%'
+        )
+
+        # 5. Publish all three clouds
         self.publisher.publish(filtered_msg)
         self.ground_publisher.publish(ground_msg)
         self.obstacles_publisher.publish(obstacles_msg)
 
+
 def main(args=None):
-    rclpy.init(args=args)  # Initialize the ROS2 Python client library
-
-    node = LidarPreprocessingNode()  # Create an instance of the LidarPreprocessingNode
-
+    rclpy.init(args=args)
+    node = LidarPreprocessingNode()
     try:
-        rclpy.spin(node)  # Keep the node running
+        rclpy.spin(node)
     except KeyboardInterrupt:
-        pass  # Allow shutdown on Ctrl+C
+        pass
     finally:
-        node.destroy_node()  # Clean up the node
+        node.destroy_node()
         if rclpy.ok():
-            rclpy.shutdown()  # Shutdown the ROS2 client library
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':
