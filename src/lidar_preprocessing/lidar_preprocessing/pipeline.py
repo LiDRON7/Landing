@@ -23,7 +23,8 @@ def run_preprocessing_pipeline_with_stats(
     outlier_threshold: float = 2.0,
 ) -> tuple[PointCloud2, PointCloud2, PointCloud2, dict[str, int]]:
     """
-    Runs the full pipeline and returns (filtered, ground, obstacles, stats).
+    Primary pipeline function. 
+    Runs all filters and returns: (filtered_msg, ground_msg, obstacles_msg, stage_counts)
     """
 
     # 1. Initialize data and stats
@@ -59,7 +60,6 @@ def run_preprocessing_pipeline_with_stats(
     stage_counts["after_statistical_outlier"] = _count_points(filtered_msg)
 
     # 3. Ground Segmentation (RANSAC)
-    # We run RANSAC on the *filtered* cloud to ensure we aren't processing junk/outliers.
     if ransac_params is None:
         ransac_params = {'dist_threshold': 0.2, 'num_iterations': 100}
 
@@ -70,3 +70,34 @@ def run_preprocessing_pipeline_with_stats(
     )
 
     return filtered_msg, ground_msg, obstacles_msg, stage_counts
+
+
+def run_preprocessing_pipeline(
+    msg: PointCloud2,
+    roi: dict[str, float] | None = None,
+    ransac_params: dict[str, float] | None = None,
+    voxel_size: float = 0.1,
+    enable_nan_filter: bool = True,
+    enable_voxel_filter: bool = True,
+    enable_roi_filter: bool = True,
+    enable_outlier_filter: bool = True,
+    outlier_mean_k: int = 30,
+    outlier_threshold: float = 2.0,
+) -> tuple[PointCloud2, PointCloud2, PointCloud2]:
+    """
+    Simplified API that returns only the three point clouds without the stats dictionary.
+    """
+    filtered_msg, ground_msg, obstacles_msg, _ = run_preprocessing_pipeline_with_stats(
+        msg,
+        roi=roi,
+        ransac_params=ransac_params,
+        voxel_size=voxel_size,
+        enable_nan_filter=enable_nan_filter,
+        enable_voxel_filter=enable_voxel_filter,
+        enable_roi_filter=enable_roi_filter,
+        enable_outlier_filter=enable_outlier_filter,
+        outlier_mean_k=outlier_mean_k,
+        outlier_threshold=outlier_threshold,
+    )
+
+    return filtered_msg, ground_msg, obstacles_msg
