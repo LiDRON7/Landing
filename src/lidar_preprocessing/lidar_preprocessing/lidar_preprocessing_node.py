@@ -7,7 +7,7 @@ from rclpy.node import Node
 # This imports the PointCloud2 message type, which is used to represent 3D point cloud data.
 from sensor_msgs.msg import PointCloud2
 
-from .pipeline import run_preprocessing_pipeline_with_stats
+from .pipeline import run_preprocessing_pipeline_with_stats, run_preprocessing_pipeline
 
 
 class LidarPreprocessingNode(Node):
@@ -32,6 +32,16 @@ class LidarPreprocessingNode(Node):
         self.declare_parameter('outlier.mean_k', 50)
         self.declare_parameter('outlier.threshold', 3.0)
 
+        self.ground_topic = '/lidar/points/ground'
+        self.obstacles_topic = '/lidar/points/obstacles'
+
+        self.declare_parameter('roi.x_min', -10.0)
+        self.declare_parameter('roi.x_max', 10.0)
+        self.declare_parameter('roi.y_min', -10.0)
+        self.declare_parameter('roi.y_max', 10.0)
+        self.declare_parameter('roi.z_min', -2.0)
+        self.declare_parameter('roi.z_max', 5.0)
+
         # Listen to the input topic and call the pointcloud_callback function whenever a new message is received
         # 10 is the queue size, determines how many messages to buffer if the processing is slower than the incoming data rate
         self.subscription = self.create_subscription(
@@ -47,9 +57,24 @@ class LidarPreprocessingNode(Node):
             10
         )
 
+        self.ground_publisher = self.create_publisher(
+            PointCloud2,
+            self.ground_topic,
+            10
+        )
+
+        self.obstacles_publisher = self.create_publisher(
+            PointCloud2,
+            self.obstacles_topic,
+            10
+        )
+
         # Log the topics we are subscribing to and publishing to
         self.get_logger().info(f'Subscribed to {self.input_topic}')
         self.get_logger().info(f'Publishing to {self.output_topic}')
+
+        self.get_logger().info(f'Publishing ground to {self.ground_topic}')
+        self.get_logger().info(f'Publishing obstacles to {self.obstacles_topic}')
 
     def pointcloud_callback(self, msg: PointCloud2):
         roi = {
@@ -60,6 +85,7 @@ class LidarPreprocessingNode(Node):
             'z_min': float(self.get_parameter('roi.z_min').value),
             'z_max': float(self.get_parameter('roi.z_max').value),
         }
+
 
         enable_nan = bool(self.get_parameter('filters.enable_nan').value)
         enable_voxel = bool(self.get_parameter('filters.enable_voxel').value)
@@ -82,6 +108,9 @@ class LidarPreprocessingNode(Node):
             outlier_mean_k=outlier_mean_k,
             outlier_threshold=outlier_threshold,
         )
+
+        # Run the preprocessing pipeline on the incoming point cloud message
+        filtered_msg, ground_msg, obstacles_msg = run_preprocessing_pipeline(msg, roi=roi)
 
         # Calculate points after filtering
         num_points_before = stage_counts['raw_input']
@@ -114,7 +143,8 @@ class LidarPreprocessingNode(Node):
 
         # Publish the processed point cloud message to the output topic
         self.publisher.publish(filtered_msg)
-
+        self.ground_publisher.publish(ground_msg)
+        self.obstacles_publisher.publish(obstacles_msg)
 
 def main(args=None):
     rclpy.init(args=args)  # Initialize the ROS2 Python client library

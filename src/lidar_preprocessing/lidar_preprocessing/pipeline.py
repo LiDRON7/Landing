@@ -47,6 +47,7 @@ def run_preprocessing_pipeline_with_stats(
             z_min=roi["z_min"],
             z_max=roi["z_max"],
         )
+
     stage_counts["after_roi_filtering"] = _count_points(filtered_msg)
 
     if enable_outlier_filter:
@@ -59,18 +60,18 @@ def run_preprocessing_pipeline_with_stats(
 
     return filtered_msg, stage_counts
 
-
 def run_preprocessing_pipeline(
-    msg: PointCloud2,
-    roi: dict[str, float] | None = None,
-    voxel_size: float = 0.1,
-    enable_nan_filter: bool = True,
-    enable_voxel_filter: bool = True,
-    enable_roi_filter: bool = True,
-    enable_outlier_filter: bool = True,
-    outlier_mean_k: int = 30,
-    outlier_threshold: float = 2.0,
-) -> PointCloud2:
+        msg: PointCloud2,
+        roi: dict[str, float] | None = None,
+        voxel_size: float = 0.1,
+        enable_nan_filter: bool = True,
+        enable_voxel_filter: bool = True,
+        enable_roi_filter: bool = True,
+        enable_outlier_filter: bool = True,
+        outlier_mean_k: int = 30,
+        outlier_threshold: float = 2.0,
+    ) -> tuple[PointCloud2, PointCloud2, PointCloud2]:
+
     # Backward-compatible API that returns only the filtered cloud.
     filtered_msg, _ = run_preprocessing_pipeline_with_stats(
         msg,
@@ -84,4 +85,6 @@ def run_preprocessing_pipeline(
         outlier_threshold=outlier_threshold,
     )
 
-    return filtered_msg
+    ground_msg, obstacles_msg = ransac_ground_segmentation(filtered_msg)
+
+    return filtered_msg, ground_msg, obstacles_msg
